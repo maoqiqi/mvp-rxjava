@@ -1,0 +1,88 @@
+apply plugin: 'com.android.application'
+
+android {
+    compileSdkVersion rootProject.ext.compileSdkVersion
+    defaultConfig {
+        applicationId "com.android.march.mvprxjava"
+        minSdkVersion rootProject.ext.minSdkVersion
+        targetSdkVersion rootProject.ext.targetSdkVersion
+        versionCode 1
+        versionName "1.0"
+        testInstrumentationRunner "android.support.test.runner.AndroidJUnitRunner"
+        javaCompileOptions {
+            annotationProcessorOptions {
+                arguments = ["room.schemaLocation": "$projectDir/schemas".toString()]
+            }
+        }
+    }
+    sourceSets {
+        androidTest.assets.srcDirs += files("$projectDir/schemas".toString())
+    }
+    buildTypes {
+        release {
+            minifyEnabled false
+            proguardFiles getDefaultProguardFile('proguard-android.txt'), 'proguard-rules.pro'
+        }
+    }
+    flavorDimensions "default"
+    productFlavors {
+        local {
+            dimension "default"
+            applicationIdSuffix = ".local"
+        }
+        remote {
+            dimension "default"
+            applicationIdSuffix = ".remote"
+        }
+        room {
+            dimension "default"
+            applicationIdSuffix = ".room"
+        }
+    }
+}
+
+dependencies {
+    implementation fileTree(dir: 'libs', include: ['*.jar'])
+    implementation "com.android.support:appcompat-v7:$rootProject.supportLibraryVersion"
+    implementation "com.android.support:design:$rootProject.supportLibraryVersion"
+    implementation "com.android.support:recyclerview-v7:$rootProject.supportLibraryVersion"
+    implementation "com.android.support:cardview-v7:$rootProject.supportLibraryVersion"
+
+    // room
+    implementation "android.arch.persistence.room:runtime:$rootProject.roomVersion"
+    annotationProcessor "android.arch.persistence.room:compiler:$rootProject.roomVersion"
+
+    // 本地单元测试的依赖项
+    // 为了对业务层进行单元测试
+    testImplementation "junit:junit:$rootProject.junitVersion"
+    // 为了生成测试mock对象
+    testImplementation "org.mockito:mockito-all:$rootProject.mockitoVersion"
+    // 使得测试代码的匹配更接近自然语言，可读性更高，更加灵活。
+    testImplementation "org.hamcrest:hamcrest-all:$rootProject.hamcrestVersion"
+
+    // Android 单元测试的依赖项
+    androidTestImplementation "junit:junit:$rootProject.junitVersion"
+    androidTestImplementation "org.mockito:mockito-core:$rootProject.mockitoVersion"
+    androidTestImplementation "android.arch.persistence.room:testing:$rootProject.roomVersion"
+
+    // Android JUnit Runner
+    androidTestImplementation "com.android.support.test:runner:$rootProject.runnerVersion"
+    // JUnit4 Rules
+    androidTestImplementation "com.android.support.test:rules:$rootProject.rulesVersion"
+
+    // Espresso UI 测试
+    // Espresso core
+    androidTestImplementation "com.android.support.test.espresso:espresso-core:$rootProject.espressoVersion"
+
+    // 测试DatePicker, RecyclerView, Drawer actions,Accessibility checks, CountingIdlingResource所需
+    // androidTestImplementation "com.android.support.test.espresso:espresso-contrib:$rootProject.espressoVersion"
+
+    // 测试WebView所需
+    // androidTestImplementation "com.android.support.test.espresso:espresso-web:$rootProject.espressoVersion"
+
+    // 测试Intent的开启和返回值
+    // androidTestImplementation "com.android.support.test.espresso:espresso-intents:$rootProject.espressoVersion"
+
+    // 测试异步线程所需
+    // androidTestImplementation "com.android.support.test.espresso:espresso-idling-resource:$rootProject.espressoVersion"
+}
