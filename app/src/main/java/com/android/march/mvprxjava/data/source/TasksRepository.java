@@ -2,11 +2,16 @@ package com.android.march.mvprxjava.data.source;
 
 import com.android.march.mvprxjava.data.TaskBean;
 
-import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.NoSuchElementException;
+
+import rx.Observable;
+import rx.functions.Action0;
+import rx.functions.Action1;
+import rx.functions.Func1;
 
 public class TasksRepository implements TasksDataSource {
 
@@ -43,71 +48,74 @@ public class TasksRepository implements TasksDataSource {
     }
 
     @Override
-    public void loadTasks(final LoadTasksCallBack callBack) {
+    public Observable<List<TaskBean>> loadTasks() {
         if (cachedTasksMap != null && !cacheIsDirty) {
-            callBack.onTasksLoaded(new ArrayList<>(cachedTasksMap.values()));
-            return;
+            return Observable.from(cachedTasksMap.values()).toList();
+        } else if (cachedTasksMap == null) {
+            cachedTasksMap = new LinkedHashMap<>();
         }
 
         if (cacheIsDirty) {
             // 从网络中获取新的数据
-            getTasksFromRemoteDataSource(callBack);
+            return getTasksFromRemoteDataSource();
         } else {
-            // 查询本地数据
-            tasksLocalDataSource.loadTasks(new LoadTasksCallBack() {
+            tasksLocalDataSource.deleteAllTasks();
+            Observable<List<TaskBean>> localTasks = tasksLocalDataSource.loadTasks().flatMap(new Func1<List<TaskBean>, Observable<List<TaskBean>>>() {
                 @Override
-                public void onTasksLoaded(List<TaskBean> taskBeanList) {
-                    refreshCache(taskBeanList);
-                    callBack.onTasksLoaded(new ArrayList<>(cachedTasksMap.values()));
-                }
-
-                @Override
-                public void onDataNotAvailable() {
-                    // 没有数据,从网络中获取新的数据
-                    getTasksFromRemoteDataSource(callBack);
+                public Observable<List<TaskBean>> call(List<TaskBean> taskBeans) {
+                    return Observable.from(taskBeans).doOnNext(new Action1<TaskBean>() {
+                        @Override
+                        public void call(TaskBean taskBean) {
+                            cachedTasksMap.put(taskBean.getId(), taskBean);
+                        }
+                    }).toList();
                 }
             });
+            Observable<List<TaskBean>> remoteTasks = getTasksFromRemoteDataSource();
+            return localTasks;/*Observable.concat(localTasks, remoteTasks)
+                    .filter(new Func1<List<TaskBean>, Boolean>() {
+                        @Override
+                        public Boolean call(List<TaskBean> taskBeans) {
+                            return !taskBeans.isEmpty();
+                        }
+                    }).first();*/
         }
     }
 
     @Override
-    public void getTask(final String taskId, final GetTaskCallBack callBack) {
+    public Observable<TaskBean> getTask(final String taskId) {
         TaskBean cachedTaskBean = getTaskWithId(taskId);
 
         if (cachedTaskBean != null) {
-            callBack.onTaskLoaded(cachedTaskBean);
-            return;
+            return Observable.just(cachedTaskBean);
         }
 
-        tasksLocalDataSource.getTask(taskId, new GetTaskCallBack() {
+        if (cachedTasksMap == null) {
+            cachedTasksMap = new LinkedHashMap<>();
+        }
+
+        Observable<TaskBean> localTask = tasksLocalDataSource.getTask(taskId).doOnNext(new Action1<TaskBean>() {
             @Override
-            public void onTaskLoaded(TaskBean taskBean) {
-                if (cachedTasksMap == null) {
-                    cachedTasksMap = new LinkedHashMap<>();
-                }
+            public void call(TaskBean taskBean) {
                 cachedTasksMap.put(taskBean.getId(), taskBean);
-                callBack.onTaskLoaded(taskBean);
             }
-
+        }).first();
+        Observable<TaskBean> remoteTask = tasksRemoteDataSource.getTask(taskId).doOnNext(new Action1<TaskBean>() {
             @Override
-            public void onDataNotAvailable() {
-                tasksRemoteDataSource.getTask(taskId, new GetTaskCallBack() {
-                    @Override
-                    public void onTaskLoaded(TaskBean taskBean) {
-                        if (cachedTasksMap == null) {
-                            cachedTasksMap = new LinkedHashMap<>();
-                        }
-                        cachedTasksMap.put(taskBean.getId(), taskBean);
-                        callBack.onTaskLoaded(taskBean);
-                    }
-
-                    @Override
-                    public void onDataNotAvailable() {
-                        callBack.onDataNotAvailable();
-                    }
-                });
+            public void call(TaskBean taskBean) {
+                cachedTasksMap.put(taskBean.getId(), taskBean);
             }
         });
+        return Observable.concat(localTask, remoteTask)
+                .map(new Func1<TaskBean, TaskBean>() {
+                    @Override
+                    public TaskBean call(TaskBean taskBean) {
+                        if (taskBean == null) {
+                            throw new NoSuchElementException("No task found with taskId " + taskId);
+                        }
+                        return taskBean;
+                    }
+                }).first();
     }
 
     @Override
@@ -221,40 +229,26 @@ public class TasksRepository implements TasksDataSource {
     }
 
     // 从网络获取数据
-    private void getTasksFromRemoteDataSource(final LoadTasksCallBack callBack) {
-        tasksRemoteDataSource.loadTasks(new LoadTasksCallBack() {
-            @Override
-            public void onTasksLoaded(List<TaskBean> taskBeanList) {
-                refreshCache(taskBeanList);
-                refreshLocalDataSource(taskBeanList);
-                callBack.onTasksLoaded(new ArrayList<>(cachedTasksMap.values()));
-            }
+    private Observable<List<TaskBean>> getTasksFromRemoteDataSource() {
+        return tasksRemoteDataSource.loadTasks().flatMap(new Func1<List<TaskBean>, Observable<List<TaskBean>>>() {
 
             @Override
-            public void onDataNotAvailable() {
-                callBack.onDataNotAvailable();
+            public Observable<List<TaskBean>> call(List<TaskBean> taskBeans) {
+                return Observable.from(taskBeans)
+                        .doOnNext(new Action1<TaskBean>() {
+                            @Override
+                            public void call(TaskBean taskBean) {
+                                cachedTasksMap.put(taskBean.getId(), taskBean);
+                                tasksLocalDataSource.addTask(taskBean);
+                            }
+                        }).toList();
+            }
+        }).doOnCompleted(new Action0() {
+            @Override
+            public void call() {
+                cacheIsDirty = false;
             }
         });
-    }
-
-    // 刷新缓存
-    private void refreshCache(List<TaskBean> taskBeanList) {
-        if (cachedTasksMap == null) {
-            cachedTasksMap = new LinkedHashMap<>();
-        }
-        cachedTasksMap.clear();
-        for (TaskBean taskBean : taskBeanList) {
-            cachedTasksMap.put(taskBean.getId(), taskBean);
-        }
-        cacheIsDirty = false;
-    }
-
-    // 刷新本地数据
-    private void refreshLocalDataSource(List<TaskBean> taskBeanList) {
-        tasksLocalDataSource.deleteAllTasks();
-        for (TaskBean taskBean : taskBeanList) {
-            tasksLocalDataSource.addTask(taskBean);
-        }
     }
 
     // 根据ID得到任务

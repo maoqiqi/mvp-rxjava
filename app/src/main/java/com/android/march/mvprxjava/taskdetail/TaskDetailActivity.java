@@ -34,7 +34,8 @@ public class TaskDetailActivity extends AppCompatActivity {
             getSupportFragmentManager().beginTransaction().add(R.id.contentFrame, taskDetailFragment).commit();
         }
 
-        new TaskDetailPresenter(taskId, Injection.provideTasksRepository(getApplicationContext()), taskDetailFragment);
+        new TaskDetailPresenter(taskId, Injection.provideTasksRepository(getApplicationContext()),
+                taskDetailFragment, Injection.provideSchedulerProvider());
     }
 
     @Override

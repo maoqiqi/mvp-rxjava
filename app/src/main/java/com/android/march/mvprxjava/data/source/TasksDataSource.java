@@ -4,27 +4,15 @@ import com.android.march.mvprxjava.data.TaskBean;
 
 import java.util.List;
 
+import rx.Observable;
+
 public interface TasksDataSource {
 
-    interface LoadTasksCallBack {
-
-        void onTasksLoaded(List<TaskBean> taskBeanList);
-
-        void onDataNotAvailable();
-    }
-
-    interface GetTaskCallBack {
-
-        void onTaskLoaded(TaskBean taskBean);
-
-        void onDataNotAvailable();
-    }
-
     // 加载任务
-    void loadTasks(LoadTasksCallBack callBack);
+    Observable<List<TaskBean>> loadTasks();
 
     // 得到某个任务
-    void getTask(String taskId, GetTaskCallBack callBack);
+    Observable<TaskBean> getTask(String taskId);
 
     // 清除已完成任务
     void clearCompletedTasks();

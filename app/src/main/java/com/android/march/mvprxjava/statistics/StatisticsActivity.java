@@ -30,7 +30,8 @@ public class StatisticsActivity extends AppCompatActivity {
             getSupportFragmentManager().beginTransaction().add(R.id.contentFrame, statisticsFragment).commit();
         }
 
-        new StatisticsPresenter(Injection.provideTasksRepository(getApplicationContext()), statisticsFragment);
+        new StatisticsPresenter(Injection.provideTasksRepository(getApplicationContext()),
+                statisticsFragment, Injection.provideSchedulerProvider());
     }
 
     @Override

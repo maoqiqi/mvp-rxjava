@@ -35,7 +35,8 @@ public class TasksActivity extends AppCompatActivity {
             getSupportFragmentManager().beginTransaction().add(R.id.contentFrame, tasksFragment).commit();
         }
 
-        tasksPresenter = new TasksPresenter(Injection.provideTasksRepository(getApplicationContext()), tasksFragment);
+        tasksPresenter = new TasksPresenter(Injection.provideTasksRepository(getApplicationContext()),
+                tasksFragment, Injection.provideSchedulerProvider());
 
         // 加载以前保存的状态
         if (savedInstanceState != null) {

@@ -50,7 +50,7 @@ public class AddEditTaskActivity extends AppCompatActivity {
         }
 
         presenter = new AddEditTaskPresenter(taskId, Injection.provideTasksRepository(getApplicationContext()),
-                addEditTaskFragment, shouldLoadDataFromRepo);
+                addEditTaskFragment, shouldLoadDataFromRepo, Injection.provideSchedulerProvider());
     }
 
     @Override

@@ -3,17 +3,22 @@ package com.android.march.mvprxjava.taskdetail;
 import com.android.march.mvprxjava.data.TaskBean;
 import com.android.march.mvprxjava.data.source.TasksDataSource;
 import com.android.march.mvprxjava.data.source.TasksRepository;
+import com.android.march.mvprxjava.utils.schedulers.BaseSchedulerProvider;
+
+import rx.Subscriber;
 
 public class TaskDetailPresenter implements TaskDetailContract.Presenter {
 
     private String taskId;
     private TasksRepository tasksRepository;
     private TaskDetailContract.View taskDetailView;
+    private BaseSchedulerProvider schedulerProvider;
 
-    public TaskDetailPresenter(String taskId, TasksRepository tasksRepository, TaskDetailContract.View taskDetailView) {
+    public TaskDetailPresenter(String taskId, TasksRepository tasksRepository, TaskDetailContract.View taskDetailView, BaseSchedulerProvider schedulerProvider) {
         this.taskId = taskId;
         this.tasksRepository = tasksRepository;
         this.taskDetailView = taskDetailView;
+        this.schedulerProvider = schedulerProvider;
 
         this.taskDetailView.setPresenter(this);
     }
@@ -31,26 +36,37 @@ public class TaskDetailPresenter implements TaskDetailContract.Presenter {
         }
 
         taskDetailView.setLoadingIndicator(true);
-        tasksRepository.getTask(taskId, new TasksDataSource.GetTaskCallBack() {
-            @Override
-            public void onTaskLoaded(TaskBean taskBean) {
-                if (!taskDetailView.isActive()) {
-                    return;
-                }
-                taskDetailView.setLoadingIndicator(false);
+        tasksRepository.getTask(taskId)
+                .observeOn(schedulerProvider.io())
+                .subscribeOn(schedulerProvider.ui())
+                .subscribe(new Subscriber<TaskBean>() {
+                    @Override
+                    public void onCompleted() {
 
-                if (taskBean == null) {
-                    taskDetailView.showNoTask();
-                } else {
-                    taskDetailView.showTask(taskBean);
-                }
-            }
+                    }
 
-            @Override
-            public void onDataNotAvailable() {
-                taskDetailView.showNoTask();
-            }
-        });
+                    @Override
+                    public void onError(Throwable e) {
+                        if (!taskDetailView.isActive()) {
+                            return;
+                        }
+                        taskDetailView.showNoTask();
+                    }
+
+                    @Override
+                    public void onNext(TaskBean taskBean) {
+                        if (!taskDetailView.isActive()) {
+                            return;
+                        }
+                        taskDetailView.setLoadingIndicator(false);
+
+                        if (taskBean == null) {
+                            taskDetailView.showNoTask();
+                        } else {
+                            taskDetailView.showTask(taskBean);
+                        }
+                    }
+                });
     }
 
     @Override

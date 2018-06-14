@@ -34,10 +34,6 @@ android {
             dimension "default"
             applicationIdSuffix = ".remote"
         }
-        room {
-            dimension "default"
-            applicationIdSuffix = ".room"
-        }
     }
 }
 
@@ -48,9 +44,12 @@ dependencies {
     implementation "com.android.support:recyclerview-v7:$rootProject.supportLibraryVersion"
     implementation "com.android.support:cardview-v7:$rootProject.supportLibraryVersion"
 
-    // room
-    implementation "android.arch.persistence.room:runtime:$rootProject.roomVersion"
-    annotationProcessor "android.arch.persistence.room:compiler:$rootProject.roomVersion"
+    // sqlbrite
+    implementation "com.squareup.sqlbrite:sqlbrite:$rootProject.sqlbriteVersion"
+
+    // rx
+    implementation "io.reactivex:rxjava:$rootProject.rxjavaVersion"
+    implementation "io.reactivex:rxandroid:$rootProject.rxandroidVersion"
 
     // 本地单元测试的依赖项
     // 为了对业务层进行单元测试
@@ -63,7 +62,6 @@ dependencies {
     // Android 单元测试的依赖项
     androidTestImplementation "junit:junit:$rootProject.junitVersion"
     androidTestImplementation "org.mockito:mockito-core:$rootProject.mockitoVersion"
-    androidTestImplementation "android.arch.persistence.room:testing:$rootProject.roomVersion"
 
     // Android JUnit Runner
     androidTestImplementation "com.android.support.test:runner:$rootProject.runnerVersion"

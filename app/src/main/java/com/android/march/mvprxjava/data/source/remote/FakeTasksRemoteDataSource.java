@@ -3,10 +3,12 @@ package com.android.march.mvprxjava.data.source.remote;
 import com.android.march.mvprxjava.data.TaskBean;
 import com.android.march.mvprxjava.data.source.TasksDataSource;
 
-import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
+
+import rx.Observable;
 
 public class FakeTasksRemoteDataSource implements TasksDataSource {
 
@@ -26,14 +28,14 @@ public class FakeTasksRemoteDataSource implements TasksDataSource {
     }
 
     @Override
-    public void loadTasks(final LoadTasksCallBack callBack) {
-        callBack.onTasksLoaded(new ArrayList<>(TASKS_SERVICE_DATA.values()));
+    public Observable<List<TaskBean>> loadTasks() {
+        return Observable.from(TASKS_SERVICE_DATA.values()).toList();
     }
 
     @Override
-    public void getTask(String taskId, final GetTaskCallBack callBack) {
+    public Observable<TaskBean> getTask(String taskId) {
         final TaskBean taskBean = TASKS_SERVICE_DATA.get(taskId);
-        callBack.onTaskLoaded(taskBean);
+        return Observable.just(taskBean);
     }
 
     @Override

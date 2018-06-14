@@ -4,23 +4,28 @@ import android.app.Activity;
 
 import com.android.march.mvprxjava.addedittask.AddEditTaskActivity;
 import com.android.march.mvprxjava.data.TaskBean;
-import com.android.march.mvprxjava.data.source.TasksDataSource;
 import com.android.march.mvprxjava.data.source.TasksRepository;
+import com.android.march.mvprxjava.utils.schedulers.BaseSchedulerProvider;
 
-import java.util.ArrayList;
 import java.util.List;
+
+import rx.Observable;
+import rx.Subscriber;
+import rx.functions.Func1;
 
 public class TasksPresenter implements TasksContract.Presenter {
 
     private final TasksRepository tasksRepository;
     private final TasksContract.View tasksView;
+    private BaseSchedulerProvider schedulerProvider;
 
     private TasksFilterType currentFiltering = TasksFilterType.ALL_TASKS;
     private boolean firstLoad = true;
 
-    public TasksPresenter(TasksRepository tasksRepository, TasksContract.View tasksView) {
+    public TasksPresenter(TasksRepository tasksRepository, TasksContract.View tasksView, BaseSchedulerProvider schedulerProvider) {
         this.tasksRepository = tasksRepository;
         this.tasksView = tasksView;
+        this.schedulerProvider = schedulerProvider;
         this.tasksView.setPresenter(this);
     }
 
@@ -46,52 +51,56 @@ public class TasksPresenter implements TasksContract.Presenter {
             // tasksRepository.refreshTasks();
         }
 
-        tasksRepository.loadTasks(new TasksDataSource.LoadTasksCallBack() {
-            @Override
-            public void onTasksLoaded(List<TaskBean> taskBeanList) {
-                List<TaskBean> tasksToShow = new ArrayList<>();
-
-                switch (currentFiltering) {
-                    case ALL_TASKS:
-                        tasksToShow.addAll(taskBeanList);
-                        break;
-                    case ACTIVE_TASKS:
-                        for (TaskBean taskBean : taskBeanList) {
-                            if (taskBean.isActive()) {
-                                tasksToShow.add(taskBean);
-                            }
+        tasksRepository.loadTasks()
+                .flatMap(new Func1<List<TaskBean>, Observable<TaskBean>>() {
+                    @Override
+                    public Observable<TaskBean> call(List<TaskBean> taskBeans) {
+                        return Observable.from(taskBeans);
+                    }
+                })
+                .filter(new Func1<TaskBean, Boolean>() {
+                    @Override
+                    public Boolean call(TaskBean taskBean) {
+                        switch (currentFiltering) {
+                            case ALL_TASKS:
+                                return true;
+                            case ACTIVE_TASKS:
+                                return taskBean.isActive();
+                            case COMPLETED_TASKS:
+                                return taskBean.isCompleted();
                         }
-                        break;
-                    case COMPLETED_TASKS:
-                        for (TaskBean taskBean : taskBeanList) {
-                            if (taskBean.isCompleted()) {
-                                tasksToShow.add(taskBean);
-                            }
+                        return null;
+                    }
+                })
+                .toList()
+                .subscribeOn(schedulerProvider.io())
+                .observeOn(schedulerProvider.ui())
+                .subscribe(new Subscriber<List<TaskBean>>() {
+                    @Override
+                    public void onCompleted() {
+
+                    }
+
+                    @Override
+                    public void onError(Throwable e) {
+                        if (!tasksView.isActive()) {
+                            return;
                         }
-                        break;
-                }
+                        // 显示一条消息,提示没有该类型的任务
+                        tasksView.showNoTasks(currentFiltering);
+                    }
 
-                if (!tasksView.isActive()) {
-                    return;
-                }
-
-                if (showLoading) {
-                    tasksView.setLoadingIndicator(false);
-                }
-
-                processTasks(tasksToShow);
-            }
-
-            @Override
-            public void onDataNotAvailable() {
-                if (!tasksView.isActive()) {
-                    return;
-                }
-
-                // 显示一条消息,提示没有该类型的任务
-                tasksView.showNoTasks(currentFiltering);
-            }
-        });
+                    @Override
+                    public void onNext(List<TaskBean> taskBeans) {
+                        if (!tasksView.isActive()) {
+                            return;
+                        }
+                        if (showLoading) {
+                            tasksView.setLoadingIndicator(false);
+                        }
+                        processTasks(taskBeans);
+                    }
+                });
     }
 
     @Override

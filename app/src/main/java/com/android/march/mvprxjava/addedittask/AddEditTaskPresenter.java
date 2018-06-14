@@ -3,6 +3,9 @@ package com.android.march.mvprxjava.addedittask;
 import com.android.march.mvprxjava.data.TaskBean;
 import com.android.march.mvprxjava.data.source.TasksDataSource;
 import com.android.march.mvprxjava.data.source.TasksRepository;
+import com.android.march.mvprxjava.utils.schedulers.BaseSchedulerProvider;
+
+import rx.Subscriber;
 
 public class AddEditTaskPresenter implements AddEditTaskContract.Presenter {
 
@@ -10,12 +13,14 @@ public class AddEditTaskPresenter implements AddEditTaskContract.Presenter {
     private TasksRepository tasksRepository;
     private AddEditTaskContract.View addEditTaskView;
     private boolean isDataMissing;
+    private BaseSchedulerProvider schedulerProvider;
 
-    public AddEditTaskPresenter(String taskId, TasksRepository tasksRepository, AddEditTaskContract.View addEditTaskView, boolean isDataMissing) {
+    public AddEditTaskPresenter(String taskId, TasksRepository tasksRepository, AddEditTaskContract.View addEditTaskView, boolean isDataMissing, BaseSchedulerProvider schedulerProvider) {
         this.taskId = taskId;
         this.tasksRepository = tasksRepository;
         this.addEditTaskView = addEditTaskView;
         this.isDataMissing = isDataMissing;
+        this.schedulerProvider = schedulerProvider;
 
         this.addEditTaskView.setPresenter(this);
     }
@@ -58,23 +63,34 @@ public class AddEditTaskPresenter implements AddEditTaskContract.Presenter {
         if (isNewTask()) {
             throw new RuntimeException("populateTask() was called but task is new.");
         }
-        tasksRepository.getTask(taskId, new TasksDataSource.GetTaskCallBack() {
-            @Override
-            public void onTaskLoaded(TaskBean taskBean) {
-                if (addEditTaskView.isActive()) {
-                    addEditTaskView.setTitle(taskBean.getTitle());
-                    addEditTaskView.setDescription(taskBean.getDescription());
-                }
 
-                isDataMissing = false;
-            }
+        tasksRepository.getTask(taskId)
+                .subscribeOn(schedulerProvider.io())
+                .observeOn(schedulerProvider.ui())
+                .subscribe(new Subscriber<TaskBean>() {
+                    @Override
+                    public void onCompleted() {
 
-            @Override
-            public void onDataNotAvailable() {
-                if (addEditTaskView.isActive()) {
-                    addEditTaskView.showMessage("任务不能为空");
-                }
-            }
-        });
+                    }
+
+                    @Override
+                    public void onError(Throwable e) {
+                        if (!addEditTaskView.isActive()) {
+                            return;
+                        }
+                        addEditTaskView.showMessage("任务不能为空");
+                    }
+
+                    @Override
+                    public void onNext(TaskBean taskBean) {
+                        if (!addEditTaskView.isActive()) {
+                            return;
+                        }
+                        addEditTaskView.setTitle(taskBean.getTitle());
+                        addEditTaskView.setDescription(taskBean.getDescription());
+
+                        isDataMissing = false;
+                    }
+                });
     }
 }

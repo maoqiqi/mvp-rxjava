@@ -1,14 +1,15 @@
 package com.android.march.mvprxjava.data.source.remote;
 
-import android.os.Handler;
-
 import com.android.march.mvprxjava.data.TaskBean;
 import com.android.march.mvprxjava.data.source.TasksDataSource;
 
-import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
+import java.util.concurrent.TimeUnit;
+
+import rx.Observable;
 
 public class TasksRemoteDataSource implements TasksDataSource {
 
@@ -36,26 +37,21 @@ public class TasksRemoteDataSource implements TasksDataSource {
     }
 
     @Override
-    public void loadTasks(final TasksDataSource.LoadTasksCallBack callBack) {
-        Handler handler = new Handler();
-        handler.postDelayed(new Runnable() {
-            @Override
-            public void run() {
-                callBack.onTasksLoaded(new ArrayList<>(TASKS_SERVICE_DATA.values()));
-            }
-        }, SERVICE_LATENCY_IN_MILLIS);
+    public Observable<List<TaskBean>> loadTasks() {
+        return Observable
+                .from(TASKS_SERVICE_DATA.values())
+                .delay(SERVICE_LATENCY_IN_MILLIS, TimeUnit.MILLISECONDS)
+                .toList();
     }
 
     @Override
-    public void getTask(String taskId, final GetTaskCallBack callBack) {
+    public Observable<TaskBean> getTask(String taskId) {
         final TaskBean taskBean = TASKS_SERVICE_DATA.get(taskId);
-        Handler handler = new Handler();
-        handler.postDelayed(new Runnable() {
-            @Override
-            public void run() {
-                callBack.onTaskLoaded(taskBean);
-            }
-        }, SERVICE_LATENCY_IN_MILLIS);
+        if (taskBean != null) {
+            return Observable.just(taskBean).delay(SERVICE_LATENCY_IN_MILLIS, TimeUnit.MILLISECONDS);
+        } else {
+            return Observable.empty();
+        }
     }
 
     @Override
