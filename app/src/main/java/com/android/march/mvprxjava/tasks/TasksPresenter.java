@@ -7,11 +7,16 @@ import com.android.march.mvprxjava.data.TaskBean;
 import com.android.march.mvprxjava.data.source.TasksRepository;
 import com.android.march.mvprxjava.utils.schedulers.BaseSchedulerProvider;
 
+import org.reactivestreams.Publisher;
+
 import java.util.List;
 
-import rx.Observable;
-import rx.Subscriber;
-import rx.functions.Func1;
+import io.reactivex.Flowable;
+import io.reactivex.SingleObserver;
+import io.reactivex.disposables.Disposable;
+import io.reactivex.functions.Action;
+import io.reactivex.functions.Function;
+import io.reactivex.functions.Predicate;
 
 public class TasksPresenter implements TasksContract.Presenter {
 
@@ -52,15 +57,15 @@ public class TasksPresenter implements TasksContract.Presenter {
         }
 
         tasksRepository.loadTasks()
-                .flatMap(new Func1<List<TaskBean>, Observable<TaskBean>>() {
+                .flatMap(new Function<List<TaskBean>, Publisher<TaskBean>>() {
                     @Override
-                    public Observable<TaskBean> call(List<TaskBean> taskBeans) {
-                        return Observable.from(taskBeans);
+                    public Publisher<TaskBean> apply(List<TaskBean> taskBeans) throws Exception {
+                        return Flowable.fromIterable(taskBeans);
                     }
                 })
-                .filter(new Func1<TaskBean, Boolean>() {
+                .filter(new Predicate<TaskBean>() {
                     @Override
-                    public Boolean call(TaskBean taskBean) {
+                    public boolean test(TaskBean taskBean) throws Exception {
                         switch (currentFiltering) {
                             case ALL_TASKS:
                                 return true;
@@ -69,16 +74,33 @@ public class TasksPresenter implements TasksContract.Presenter {
                             case COMPLETED_TASKS:
                                 return taskBean.isCompleted();
                         }
-                        return null;
+                        return true;
                     }
                 })
                 .toList()
                 .subscribeOn(schedulerProvider.io())
                 .observeOn(schedulerProvider.ui())
-                .subscribe(new Subscriber<List<TaskBean>>() {
+                .doFinally(new Action() {
                     @Override
-                    public void onCompleted() {
+                    public void run() throws Exception {
 
+                    }
+                })
+                .subscribe(new SingleObserver<List<TaskBean>>() {
+                    @Override
+                    public void onSubscribe(Disposable d) {
+
+                    }
+
+                    @Override
+                    public void onSuccess(List<TaskBean> taskBeans) {
+                        if (!tasksView.isActive()) {
+                            return;
+                        }
+                        if (showLoading) {
+                            tasksView.setLoadingIndicator(false);
+                        }
+                        processTasks(taskBeans);
                     }
 
                     @Override
@@ -88,17 +110,6 @@ public class TasksPresenter implements TasksContract.Presenter {
                         }
                         // 显示一条消息,提示没有该类型的任务
                         tasksView.showNoTasks(currentFiltering);
-                    }
-
-                    @Override
-                    public void onNext(List<TaskBean> taskBeans) {
-                        if (!tasksView.isActive()) {
-                            return;
-                        }
-                        if (showLoading) {
-                            tasksView.setLoadingIndicator(false);
-                        }
-                        processTasks(taskBeans);
                     }
                 });
     }

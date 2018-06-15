@@ -9,7 +9,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
 
-import rx.Observable;
+import io.reactivex.Flowable;
 
 public class TasksRemoteDataSource implements TasksDataSource {
 
@@ -37,20 +37,21 @@ public class TasksRemoteDataSource implements TasksDataSource {
     }
 
     @Override
-    public Observable<List<TaskBean>> loadTasks() {
-        return Observable
-                .from(TASKS_SERVICE_DATA.values())
+    public Flowable<List<TaskBean>> loadTasks() {
+        return Flowable
+                .fromIterable(TASKS_SERVICE_DATA.values())
                 .delay(SERVICE_LATENCY_IN_MILLIS, TimeUnit.MILLISECONDS)
-                .toList();
+                .toList()
+                .toFlowable();
     }
 
     @Override
-    public Observable<TaskBean> getTask(String taskId) {
+    public Flowable<TaskBean> getTask(String taskId) {
         final TaskBean taskBean = TASKS_SERVICE_DATA.get(taskId);
         if (taskBean != null) {
-            return Observable.just(taskBean).delay(SERVICE_LATENCY_IN_MILLIS, TimeUnit.MILLISECONDS);
+            return Flowable.just(taskBean).delay(SERVICE_LATENCY_IN_MILLIS, TimeUnit.MILLISECONDS);
         } else {
-            return Observable.empty();
+            return Flowable.empty();
         }
     }
 

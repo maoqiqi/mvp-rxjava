@@ -1,6 +1,6 @@
 package com.android.march.mvprxjava.utils.schedulers;
 
-import rx.Scheduler;
+import io.reactivex.Scheduler;
 
 public interface BaseSchedulerProvider {
 

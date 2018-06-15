@@ -1,11 +1,12 @@
 package com.android.march.mvprxjava.addedittask;
 
 import com.android.march.mvprxjava.data.TaskBean;
-import com.android.march.mvprxjava.data.source.TasksDataSource;
 import com.android.march.mvprxjava.data.source.TasksRepository;
 import com.android.march.mvprxjava.utils.schedulers.BaseSchedulerProvider;
 
-import rx.Subscriber;
+import org.reactivestreams.Subscription;
+
+import io.reactivex.FlowableSubscriber;
 
 public class AddEditTaskPresenter implements AddEditTaskContract.Presenter {
 
@@ -67,18 +68,10 @@ public class AddEditTaskPresenter implements AddEditTaskContract.Presenter {
         tasksRepository.getTask(taskId)
                 .subscribeOn(schedulerProvider.io())
                 .observeOn(schedulerProvider.ui())
-                .subscribe(new Subscriber<TaskBean>() {
+                .subscribe(new FlowableSubscriber<TaskBean>() {
                     @Override
-                    public void onCompleted() {
+                    public void onSubscribe(Subscription s) {
 
-                    }
-
-                    @Override
-                    public void onError(Throwable e) {
-                        if (!addEditTaskView.isActive()) {
-                            return;
-                        }
-                        addEditTaskView.showMessage("任务不能为空");
                     }
 
                     @Override
@@ -90,6 +83,19 @@ public class AddEditTaskPresenter implements AddEditTaskContract.Presenter {
                         addEditTaskView.setDescription(taskBean.getDescription());
 
                         isDataMissing = false;
+                    }
+
+                    @Override
+                    public void onError(Throwable t) {
+                        if (!addEditTaskView.isActive()) {
+                            return;
+                        }
+                        addEditTaskView.showMessage("任务不能为空");
+                    }
+
+                    @Override
+                    public void onComplete() {
+
                     }
                 });
     }

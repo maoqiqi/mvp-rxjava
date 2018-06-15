@@ -1,11 +1,13 @@
 package com.android.march.mvprxjava.taskdetail;
 
 import com.android.march.mvprxjava.data.TaskBean;
-import com.android.march.mvprxjava.data.source.TasksDataSource;
 import com.android.march.mvprxjava.data.source.TasksRepository;
 import com.android.march.mvprxjava.utils.schedulers.BaseSchedulerProvider;
 
-import rx.Subscriber;
+import org.reactivestreams.Subscription;
+
+import io.reactivex.FlowableSubscriber;
+import io.reactivex.functions.Predicate;
 
 public class TaskDetailPresenter implements TaskDetailContract.Presenter {
 
@@ -37,20 +39,12 @@ public class TaskDetailPresenter implements TaskDetailContract.Presenter {
 
         taskDetailView.setLoadingIndicator(true);
         tasksRepository.getTask(taskId)
-                .observeOn(schedulerProvider.io())
-                .subscribeOn(schedulerProvider.ui())
-                .subscribe(new Subscriber<TaskBean>() {
+                .subscribeOn(schedulerProvider.io())
+                .observeOn(schedulerProvider.ui())
+                .subscribe(new FlowableSubscriber<TaskBean>() {
                     @Override
-                    public void onCompleted() {
+                    public void onSubscribe(Subscription s) {
 
-                    }
-
-                    @Override
-                    public void onError(Throwable e) {
-                        if (!taskDetailView.isActive()) {
-                            return;
-                        }
-                        taskDetailView.showNoTask();
                     }
 
                     @Override
@@ -65,6 +59,19 @@ public class TaskDetailPresenter implements TaskDetailContract.Presenter {
                         } else {
                             taskDetailView.showTask(taskBean);
                         }
+                    }
+
+                    @Override
+                    public void onError(Throwable t) {
+                        if (!taskDetailView.isActive()) {
+                            return;
+                        }
+                        taskDetailView.showNoTask();
+                    }
+
+                    @Override
+                    public void onComplete() {
+
                     }
                 });
     }

@@ -8,13 +8,14 @@ import android.database.sqlite.SQLiteDatabase;
 import com.android.march.mvprxjava.data.TaskBean;
 import com.android.march.mvprxjava.data.source.TasksDataSource;
 import com.android.march.mvprxjava.utils.schedulers.BaseSchedulerProvider;
-import com.squareup.sqlbrite.BriteDatabase;
-import com.squareup.sqlbrite.SqlBrite;
+import com.squareup.sqlbrite2.BriteDatabase;
+import com.squareup.sqlbrite2.SqlBrite;
 
 import java.util.List;
 
-import rx.Observable;
-import rx.functions.Func1;
+import io.reactivex.BackpressureStrategy;
+import io.reactivex.Flowable;
+import io.reactivex.functions.Function;
 
 public class TasksLocalDataSource implements TasksDataSource {
 
@@ -22,16 +23,16 @@ public class TasksLocalDataSource implements TasksDataSource {
 
     private BriteDatabase briteDatabase;
 
-    private Func1<Cursor, TaskBean> cursorTaskBeanFunc;
+    private Function<Cursor, TaskBean> cursorTaskBeanFunc;
 
     private TasksLocalDataSource(Context context, BaseSchedulerProvider schedulerProvider) {
         DatabaseHelper helper = new DatabaseHelper(context);
-        SqlBrite sqlBrite = SqlBrite.create();
+        SqlBrite sqlBrite = new SqlBrite.Builder().build();
         briteDatabase = sqlBrite.wrapDatabaseHelper(helper, schedulerProvider.io());
 
-        cursorTaskBeanFunc = new Func1<Cursor, TaskBean>() {
+        cursorTaskBeanFunc = new Function<Cursor, TaskBean>() {
             @Override
-            public TaskBean call(Cursor cursor) {
+            public TaskBean apply(Cursor cursor) {
                 return getTask(cursor);
             }
         };
@@ -62,16 +63,24 @@ public class TasksLocalDataSource implements TasksDataSource {
     }
 
     @Override
-    public Observable<List<TaskBean>> loadTasks() {
+    public Flowable<List<TaskBean>> loadTasks() {
         String sql = "select id,title,description,completed from task";
-        return briteDatabase.createQuery("task", sql).mapToList(cursorTaskBeanFunc);
+        return briteDatabase.createQuery("task", sql)
+                .mapToList(cursorTaskBeanFunc)
+                .toFlowable(BackpressureStrategy.BUFFER);
     }
 
     @Override
-    public Observable<TaskBean> getTask(String taskId) {
+    public Flowable<TaskBean> getTask(String taskId) {
         String sql = "select id,title,description,completed from task where id = ?";
         return briteDatabase.createQuery("task", sql, taskId)
-                .mapToOneOrDefault(cursorTaskBeanFunc, null);
+                .mapToOne(new Function<Cursor, TaskBean>() {
+                    @Override
+                    public TaskBean apply(Cursor cursor) throws Exception {
+                        return cursorTaskBeanFunc.apply(cursor);
+                    }
+                })
+                .toFlowable(BackpressureStrategy.BUFFER);
     }
 
     @Override

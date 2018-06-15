@@ -3,16 +3,19 @@ package com.android.march.mvprxjava.statistics;
 import android.support.v4.util.Pair;
 
 import com.android.march.mvprxjava.data.TaskBean;
-import com.android.march.mvprxjava.data.source.TasksDataSource;
 import com.android.march.mvprxjava.data.source.TasksRepository;
 import com.android.march.mvprxjava.utils.schedulers.BaseSchedulerProvider;
 
+import org.reactivestreams.Publisher;
+import org.reactivestreams.Subscription;
+
 import java.util.List;
 
-import rx.Observable;
-import rx.Subscriber;
-import rx.functions.Func1;
-import rx.functions.Func2;
+import io.reactivex.Flowable;
+import io.reactivex.FlowableSubscriber;
+import io.reactivex.functions.BiFunction;
+import io.reactivex.functions.Function;
+import io.reactivex.functions.Predicate;
 
 public class StatisticsPresenter implements StatisticsContract.Presenter {
 
@@ -36,44 +39,54 @@ public class StatisticsPresenter implements StatisticsContract.Presenter {
     public void loadStatistics() {
         statisticsView.setLoadingIndicator(true);
 
-        Observable<TaskBean> tasks = tasksRepository.loadTasks().flatMap(new Func1<List<TaskBean>, Observable<TaskBean>>() {
-            @Override
-            public Observable<TaskBean> call(List<TaskBean> taskBeans) {
-                return Observable.from(taskBeans);
-            }
-        });
+        Flowable<TaskBean> tasks = tasksRepository.loadTasks()
+                .flatMap(new Function<List<TaskBean>, Publisher<TaskBean>>() {
+                    @Override
+                    public Publisher<TaskBean> apply(List<TaskBean> taskBeans) throws Exception {
+                        return Flowable.fromIterable(taskBeans);
+                    }
+                });
 
-        Observable<Integer> activeTasks = tasks.filter(new Func1<TaskBean, Boolean>() {
+        Flowable<Long> activeTasks = tasks.filter(new Predicate<TaskBean>() {
             @Override
-            public Boolean call(TaskBean taskBean) {
+            public boolean test(TaskBean taskBean) throws Exception {
                 return taskBean.isActive();
             }
-        }).count();
+        }).count().toFlowable();
 
-        Observable<Integer> completedTasks = tasks.filter(new Func1<TaskBean, Boolean>() {
+        Flowable<Long> completedTasks = tasks.filter(new Predicate<TaskBean>() {
             @Override
-            public Boolean call(TaskBean taskBean) {
+            public boolean test(TaskBean taskBean) throws Exception {
                 return taskBean.isCompleted();
             }
-        }).count();
+        }).count().toFlowable();
 
-        Observable
-                .zip(completedTasks, activeTasks, new Func2<Integer, Integer, Pair<Integer, Integer>>() {
+        Flowable
+                .zip(completedTasks, activeTasks, new BiFunction<Long, Long, Pair<Long, Long>>() {
                     @Override
-                    public Pair<Integer, Integer> call(Integer completed, Integer active) {
+                    public Pair<Long, Long> apply(Long completed, Long active) throws Exception {
                         return Pair.create(active, completed);
                     }
                 })
                 .subscribeOn(schedulerProvider.io())
                 .observeOn(schedulerProvider.ui())
-                .subscribe(new Subscriber<Pair<Integer, Integer>>() {
+                .subscribe(new FlowableSubscriber<Pair<Long, Long>>() {
                     @Override
-                    public void onCompleted() {
+                    public void onSubscribe(Subscription s) {
 
                     }
 
                     @Override
-                    public void onError(Throwable e) {
+                    public void onNext(Pair<Long, Long> pair) {
+                        if (!statisticsView.isActive()) {
+                            return;
+                        }
+                        statisticsView.setLoadingIndicator(false);
+                        statisticsView.showStatistics(Integer.parseInt(pair.first.toString()), Integer.parseInt(pair.second.toString()));
+                    }
+
+                    @Override
+                    public void onError(Throwable t) {
                         if (!statisticsView.isActive()) {
                             return;
                         }
@@ -81,12 +94,8 @@ public class StatisticsPresenter implements StatisticsContract.Presenter {
                     }
 
                     @Override
-                    public void onNext(Pair<Integer, Integer> pair) {
-                        if (!statisticsView.isActive()) {
-                            return;
-                        }
-                        statisticsView.setLoadingIndicator(false);
-                        statisticsView.showStatistics(pair.first, pair.second);
+                    public void onComplete() {
+
                     }
                 });
     }

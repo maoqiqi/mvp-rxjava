@@ -8,7 +8,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
-import rx.Observable;
+import io.reactivex.Flowable;
 
 public class FakeTasksRemoteDataSource implements TasksDataSource {
 
@@ -28,14 +28,14 @@ public class FakeTasksRemoteDataSource implements TasksDataSource {
     }
 
     @Override
-    public Observable<List<TaskBean>> loadTasks() {
-        return Observable.from(TASKS_SERVICE_DATA.values()).toList();
+    public Flowable<List<TaskBean>> loadTasks() {
+        return Flowable.fromIterable(TASKS_SERVICE_DATA.values()).toList().toFlowable();
     }
 
     @Override
-    public Observable<TaskBean> getTask(String taskId) {
+    public Flowable<TaskBean> getTask(String taskId) {
         final TaskBean taskBean = TASKS_SERVICE_DATA.get(taskId);
-        return Observable.just(taskBean);
+        return Flowable.just(taskBean);
     }
 
     @Override

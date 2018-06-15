@@ -4,15 +4,15 @@ import com.android.march.mvprxjava.data.TaskBean;
 
 import java.util.List;
 
-import rx.Observable;
+import io.reactivex.Flowable;
 
 public interface TasksDataSource {
 
     // 加载任务
-    Observable<List<TaskBean>> loadTasks();
+    Flowable<List<TaskBean>> loadTasks();
 
     // 得到某个任务
-    Observable<TaskBean> getTask(String taskId);
+    Flowable<TaskBean> getTask(String taskId);
 
     // 清除已完成任务
     void clearCompletedTasks();

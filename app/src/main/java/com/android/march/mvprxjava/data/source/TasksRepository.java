@@ -2,16 +2,18 @@ package com.android.march.mvprxjava.data.source;
 
 import com.android.march.mvprxjava.data.TaskBean;
 
+import org.reactivestreams.Publisher;
+
 import java.util.Iterator;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.NoSuchElementException;
 
-import rx.Observable;
-import rx.functions.Action0;
-import rx.functions.Action1;
-import rx.functions.Func1;
+import io.reactivex.Flowable;
+import io.reactivex.functions.Action;
+import io.reactivex.functions.Consumer;
+import io.reactivex.functions.Function;
+import io.reactivex.functions.Predicate;
 
 public class TasksRepository implements TasksDataSource {
 
@@ -48,9 +50,9 @@ public class TasksRepository implements TasksDataSource {
     }
 
     @Override
-    public Observable<List<TaskBean>> loadTasks() {
+    public Flowable<List<TaskBean>> loadTasks() {
         if (cachedTasksMap != null && !cacheIsDirty) {
-            return Observable.from(cachedTasksMap.values()).toList();
+            return Flowable.fromIterable(cachedTasksMap.values()).toList().toFlowable();
         } else if (cachedTasksMap == null) {
             cachedTasksMap = new LinkedHashMap<>();
         }
@@ -59,63 +61,63 @@ public class TasksRepository implements TasksDataSource {
             // 从网络中获取新的数据
             return getTasksFromRemoteDataSource();
         } else {
-            tasksLocalDataSource.deleteAllTasks();
-            Observable<List<TaskBean>> localTasks = tasksLocalDataSource.loadTasks().flatMap(new Func1<List<TaskBean>, Observable<List<TaskBean>>>() {
-                @Override
-                public Observable<List<TaskBean>> call(List<TaskBean> taskBeans) {
-                    return Observable.from(taskBeans).doOnNext(new Action1<TaskBean>() {
+            Flowable<List<TaskBean>> localTasks = tasksLocalDataSource.loadTasks()
+                    .flatMap(new Function<List<TaskBean>, Publisher<List<TaskBean>>>() {
                         @Override
-                        public void call(TaskBean taskBean) {
-                            cachedTasksMap.put(taskBean.getId(), taskBean);
+                        public Publisher<List<TaskBean>> apply(List<TaskBean> taskBeans) {
+                            return Flowable.fromIterable(taskBeans)
+                                    .doOnNext(new Consumer<TaskBean>() {
+                                        @Override
+                                        public void accept(TaskBean taskBean) {
+                                            cachedTasksMap.put(taskBean.getId(), taskBean);
+                                        }
+                                    })
+                                    .toList().toFlowable();
                         }
-                    }).toList();
-                }
-            });
-            Observable<List<TaskBean>> remoteTasks = getTasksFromRemoteDataSource();
-            return localTasks;/*Observable.concat(localTasks, remoteTasks)
-                    .filter(new Func1<List<TaskBean>, Boolean>() {
+                    });
+            Flowable<List<TaskBean>> remoteTasks = getTasksFromRemoteDataSource();
+            return Flowable.concat(localTasks, remoteTasks)
+                    .filter(new Predicate<List<TaskBean>>() {
                         @Override
-                        public Boolean call(List<TaskBean> taskBeans) {
+                        public boolean test(List<TaskBean> taskBeans) {
                             return !taskBeans.isEmpty();
                         }
-                    }).first();*/
+                    }).firstOrError().toFlowable();
         }
     }
 
     @Override
-    public Observable<TaskBean> getTask(final String taskId) {
+    public Flowable<TaskBean> getTask(final String taskId) {
         TaskBean cachedTaskBean = getTaskWithId(taskId);
 
         if (cachedTaskBean != null) {
-            return Observable.just(cachedTaskBean);
+            return Flowable.just(cachedTaskBean);
         }
 
         if (cachedTasksMap == null) {
             cachedTasksMap = new LinkedHashMap<>();
         }
 
-        Observable<TaskBean> localTask = tasksLocalDataSource.getTask(taskId).doOnNext(new Action1<TaskBean>() {
+        Flowable<TaskBean> localTask = tasksLocalDataSource.getTask(taskId).doOnNext(new Consumer<TaskBean>() {
             @Override
-            public void call(TaskBean taskBean) {
+            public void accept(TaskBean taskBean) throws Exception {
                 cachedTasksMap.put(taskBean.getId(), taskBean);
             }
-        }).first();
-        Observable<TaskBean> remoteTask = tasksRemoteDataSource.getTask(taskId).doOnNext(new Action1<TaskBean>() {
+        }).firstElement().toFlowable();
+        Flowable<TaskBean> remoteTask = tasksRemoteDataSource.getTask(taskId).doOnNext(new Consumer<TaskBean>() {
             @Override
-            public void call(TaskBean taskBean) {
+            public void accept(TaskBean taskBean) throws Exception {
                 cachedTasksMap.put(taskBean.getId(), taskBean);
             }
         });
-        return Observable.concat(localTask, remoteTask)
-                .map(new Func1<TaskBean, TaskBean>() {
+        return localTask;/*Flowable.concat(localTask, remoteTask)
+                .filter(new Predicate<TaskBean>() {
                     @Override
-                    public TaskBean call(TaskBean taskBean) {
-                        if (taskBean == null) {
-                            throw new NoSuchElementException("No task found with taskId " + taskId);
-                        }
-                        return taskBean;
+                    public boolean test(TaskBean taskBean) throws Exception {
+                        return taskBean != null;
                     }
-                }).first();
+                })
+                .firstElement().toFlowable();*/
     }
 
     @Override
@@ -229,26 +231,25 @@ public class TasksRepository implements TasksDataSource {
     }
 
     // 从网络获取数据
-    private Observable<List<TaskBean>> getTasksFromRemoteDataSource() {
-        return tasksRemoteDataSource.loadTasks().flatMap(new Func1<List<TaskBean>, Observable<List<TaskBean>>>() {
-
-            @Override
-            public Observable<List<TaskBean>> call(List<TaskBean> taskBeans) {
-                return Observable.from(taskBeans)
-                        .doOnNext(new Action1<TaskBean>() {
+    private Flowable<List<TaskBean>> getTasksFromRemoteDataSource() {
+        return tasksRemoteDataSource.loadTasks()
+                .flatMap(new Function<List<TaskBean>, Publisher<List<TaskBean>>>() {
+                    @Override
+                    public Publisher<List<TaskBean>> apply(List<TaskBean> taskBeans) {
+                        return Flowable.fromIterable(taskBeans).doOnNext(new Consumer<TaskBean>() {
                             @Override
-                            public void call(TaskBean taskBean) {
+                            public void accept(TaskBean taskBean) {
                                 cachedTasksMap.put(taskBean.getId(), taskBean);
                                 tasksLocalDataSource.addTask(taskBean);
                             }
-                        }).toList();
-            }
-        }).doOnCompleted(new Action0() {
-            @Override
-            public void call() {
-                cacheIsDirty = false;
-            }
-        });
+                        }).toList().toFlowable();
+                    }
+                }).doOnComplete(new Action() {
+                    @Override
+                    public void run() {
+                        cacheIsDirty = false;
+                    }
+                });
     }
 
     // 根据ID得到任务

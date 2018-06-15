@@ -45,11 +45,11 @@ dependencies {
     implementation "com.android.support:cardview-v7:$rootProject.supportLibraryVersion"
 
     // sqlbrite
-    implementation "com.squareup.sqlbrite:sqlbrite:$rootProject.sqlbriteVersion"
+    implementation "com.squareup.sqlbrite2:sqlbrite:$rootProject.sqlbriteVersion"
 
     // rx
-    implementation "io.reactivex:rxjava:$rootProject.rxjavaVersion"
-    implementation "io.reactivex:rxandroid:$rootProject.rxandroidVersion"
+    implementation "io.reactivex.rxjava2:rxjava:$rootProject.rxjavaVersion"
+    implementation "io.reactivex.rxjava2:rxandroid:$rootProject.rxandroidVersion"
 
     // 本地单元测试的依赖项
     // 为了对业务层进行单元测试
