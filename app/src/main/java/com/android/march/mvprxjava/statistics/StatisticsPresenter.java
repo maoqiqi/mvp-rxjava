@@ -58,15 +58,15 @@ public class StatisticsPresenter implements StatisticsContract.Presenter {
         }).count();
 
         Observable
-                .zip(completedTasks, activeTasks, new Func2<Integer, Integer, Pair>() {
+                .zip(completedTasks, activeTasks, new Func2<Integer, Integer, Pair<Integer, Integer>>() {
                     @Override
-                    public Pair call(Integer completed, Integer active) {
+                    public Pair<Integer, Integer> call(Integer completed, Integer active) {
                         return Pair.create(active, completed);
                     }
                 })
                 .subscribeOn(schedulerProvider.io())
                 .observeOn(schedulerProvider.ui())
-                .subscribe(new Subscriber<Pair>() {
+                .subscribe(new Subscriber<Pair<Integer, Integer>>() {
                     @Override
                     public void onCompleted() {
 
@@ -81,13 +81,12 @@ public class StatisticsPresenter implements StatisticsContract.Presenter {
                     }
 
                     @Override
-                    public void onNext(Pair pair) {
+                    public void onNext(Pair<Integer, Integer> pair) {
                         if (!statisticsView.isActive()) {
                             return;
                         }
                         statisticsView.setLoadingIndicator(false);
-                        statisticsView.showStatistics(Integer.valueOf(pair.first.toString()),
-                                Integer.valueOf(pair.first.toString()));
+                        statisticsView.showStatistics(pair.first, pair.second);
                     }
                 });
     }
